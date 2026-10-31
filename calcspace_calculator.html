@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CalcSpace — All-in-One Calculator</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#141c31;--panel2:#1b2640;--text:#eef3ff;--muted:#91a0bd;--accent:#7c9cff;--accent2:#9b8cff;--line:#293653}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 10% 0%,#1d2b50 0,transparent 38%),var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px}
+.wrap{max-width:1050px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px}.brand{font-weight:800;font-size:22px;letter-spacing:-.6px}.brand span{color:var(--accent)}.tag{color:var(--muted);font-size:13px}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,.8fr);gap:18px}.card{background:linear-gradient(160deg,rgba(25,36,62,.97),rgba(17,25,44,.98));border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 18px 50px #0003}
+.display{background:#0b1223;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px;min-height:112px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+#expression{color:var(--muted);font-size:16px;min-height:24px;overflow-wrap:anywhere}#result{font-size:clamp(30px,6vw,42px);font-weight:750;text-align:right;overflow-wrap:anywhere;letter-spacing:-1px}
+.keys{display:grid;grid-template-columns:repeat(5,1fr);gap:9px}.key{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:13px;min-height:56px;font-size:17px;font-weight:650;cursor:pointer;transition:.15s}.key:hover{filter:brightness(1.2);transform:translateY(-1px)}.key:active{transform:scale(.97)}.op{color:#b9c8ff;background:#243457}.fn{color:#c5baff;background:#2a2850}.danger{color:#ffb5c0;background:#482638}.equal{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081020;border:0;font-size:21px}.zero{grid-column:span 2}
+.sidehead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.sidehead h2{font-size:17px;margin:0}.clear{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit}.history{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow:auto}.item{padding:11px 12px;border-radius:12px;background:#0e172a;border:1px solid var(--line);cursor:pointer}.item:hover{border-color:var(--accent)}.item .old{color:var(--muted);font-size:13px;overflow-wrap:anywhere}.item .new{font-size:18px;font-weight:700;overflow-wrap:anywhere}.empty{color:var(--muted);font-size:14px;padding:18px 4px}
+.note{color:var(--muted);font-size:12px;margin-top:14px}.tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.tab{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:7px 12px;cursor:pointer}.tab.active{background:#243457;color:#fff;border-color:#526aa2}
+@media(max-width:760px){body{padding:14px}.layout{grid-template-columns:1fr}.card{padding:15px}.key{min-height:53px}.history{max-height:220px}.tag{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><div class="brand">Calc<span>Space</span></div><div class="tag">Your all-in-one calculator</div></header>
+  <main class="layout">
+    <section class="card">
+      <div class="tabs"><button class="tab active" data-mode="basic">Basic</button><button class="tab" data-mode="scientific">Scientific</button></div>
+      <div class="display"><div id="expression">Ready when you are</div><div id="result">0</div></div>
+      <div class="keys" id="keys"></div>
+      <div class="note">Tip: use your keyboard too. Enter = calculate · Backspace = delete · Esc = clear.</div>
+    </section>
+    <aside class="card">
+      <div class="sidehead"><h2>Recent calculations</h2><button class="clear" id="clearHistory">Clear</button></div>
+      <div class="history" id="history"><div class="empty">Your calculations will appear here.</div></div>
+    </aside>
+  </main>
+</div>
+<script>
+const basic=[
+ ['AC','danger'],['DEL','danger'],['%','fn'],['÷','op'],['×','op'],
+ ['7',''],['8',''],['9',''],['−','op'],['+','op'],
+ ['4',''],['5',''],['6',''],['(','fn'],[')','fn'],
+ ['1',''],['2',''],['3',''],['√','fn'],['x²','fn'],
+ ['0','zero'],['.',''],['π','fn'],['=','equal']
+];
+const scientific=[
+ ['sin','fn'],['cos','fn'],['tan','fn'],['ln','fn'],['log','fn'],
+ ['AC','danger'],['DEL','danger'],['%','fn'],['÷','op'],['×','op'],
+ ['7',''],['8',''],['9',''],['−','op'],['+','op'],
+ ['4',''],['5',''],['6',''],['(','fn'],[')','fn'],
+ ['1',''],['2',''],['3',''],['√','fn'],['x²','fn'],
+ ['0','zero'],['.',''],['π','fn'],['^','op'],['=','equal']
+];
+let expr='',justSolved=false,mode='basic',history=[];
+const $=id=>document.getElementById(id), result=$('result'), expression=$('expression');
+function render(){result.textContent=expr||'0';}
+function add(v){
+ if(v==='AC'){expr='';expression.textContent='Ready when you are';render();return}
+ if(v==='DEL'){expr=expr.slice(0,-1);render();return}
+ if(v==='='){calculate();return}
+ if(['sin','cos','tan','ln','log'].includes(v)){expr+=v+'(';justSolved=false;render();return}
+ if(v==='√'){expr+='sqrt(';justSolved=false;render();return}
+ if(v==='x²'){expr+='^2';justSolved=false;render();return}
+ if(v==='π'){expr+='π';justSolved=false;render();return}
+ if(v==='×')v='*'; if(v==='÷')v='/'; if(v==='−')v='-';
+ if(v==='%')v='%';
+ if(justSolved && /[0-9.(π]/.test(v)){expr='';}
+ expr+=v;justSolved=false;render();
+}
+function safeEval(source){
+ let s=source.replace(/π/g,'Math.PI').replace(/(\d+(?:\.\d+)?)%/g,'($1/100)')
+ .replace(/\^/g,'**')
+ .replace(/\bsqrt\(/g,'Math.sqrt(').replace(/\bsin\(/g,'Math.sin(Math.PI/180*')
+ .replace(/\bcos\(/g,'Math.cos(Math.PI/180*').replace(/\btan\(/g,'Math.tan(Math.PI/180*')
+ .replace(/\bln\(/g,'Math.log(').replace(/\blog\(/g,'Math.log10(');
+ if(!/^[0-9+\-*/().,\sA-Za-z_*]+$/.test(s) || /(?:constructor|window|document|alert|eval|Function)/i.test(s)) throw Error('Invalid expression');
+ const value=Function('"use strict";return ('+s+')')();
+ if(typeof value!=='number'||!Number.isFinite(value))throw Error('Math error');
+ return Number.parseFloat(value.toPrecision(12));
+}
+function calculate(){
+ if(!expr)return;
+ try{const old=expr, val=safeEval(expr);expr=String(val);expression.textContent=old+' =';justSolved=true;history.unshift({old,val});history=history.slice(0,30);renderHistory();render();}
+ catch(e){expression.textContent=e.message==='Math error'?'Cannot calculate this expression':'Check your expression';}
+}
+function renderHistory(){
+ const h=$('history');h.innerHTML='';
+ if(!history.length){h.innerHTML='<div class="empty">Your calculations will appear here.</div>';return}
+ history.forEach(item=>{const d=document.createElement('div');d.className='item';const a=document.createElement('div'),b=document.createElement('div');a.className='old';b.className='new';a.textContent=item.old;b.textContent='= '+item.val;d.append(a,b);d.addEventListener('click',()=>{expr=String(item.val);expression.textContent='Reused result';justSolved=true;render()});h.append(d)});
+}
+function build(){const k=$('keys');k.innerHTML='';(mode==='basic'?basic:scientific).forEach(([v,c])=>{const b=document.createElement('button');b.className='key '+c;b.textContent=v;b.addEventListener('click',()=>add(v));k.append(b)});document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode))}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{mode=t.dataset.mode;build()}));
+$('clearHistory').addEventListener('click',()=>{history=[];renderHistory()});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Enter'||e.key==='='){e.preventDefault();calculate()}
+ else if(e.key==='Backspace'){add('DEL')}
+ else if(e.key==='Escape'){add('AC')}
+ else if(/^[0-9.+\-*/()%()]$/.test(e.key)){add(e.key)}
+});
+build();render();
+</script>
+</body>
+</html>
